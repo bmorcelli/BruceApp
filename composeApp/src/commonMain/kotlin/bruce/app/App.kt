@@ -429,6 +429,15 @@ fun App() {
                         }
                     }
                     Button(
+                        onClick = { launchNavigator() },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = purpleColor,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text("Navigator")
+                    }
+                    Button(
                         onClick = { showSerialCmds = !showSerialCmds },
                         colors = ButtonDefaults.buttonColors(
                             backgroundColor = purpleColor,

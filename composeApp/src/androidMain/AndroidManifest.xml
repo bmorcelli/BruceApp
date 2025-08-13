@@ -31,6 +31,7 @@
                 android:resource="@xml/device_filter" />
         </activity>
         <activity android:name=".AndroidWebViewActivity" />
+        <activity android:name=".NavigatorActivity" />
     </application>
 
 </manifest>

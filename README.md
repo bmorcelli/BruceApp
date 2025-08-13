@@ -4,6 +4,12 @@
 
 ![Bruce App](./assets/bruce_app_show.gif)
 
+## Navigator
+
+The app now bundles a cross‑platform **Navigator** interface. It opens a
+web‑based control panel for the connected device, available from both the
+Android and desktop versions.
+
 ## Building
 ```
 ./gradlew clean build
