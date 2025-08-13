@@ -72,14 +72,22 @@ class DesktopSerialCommunication : SerialCommunication {
                 val commandWithNewline = "$command\n"
                 outputStream?.write(commandWithNewline.toByteArray())
                 outputStream?.flush()
-                notifyOutput("Command sent successfully")
-                
-                // Read response
+                val isDump = command.lowercase() == "display dump"
                 val buffer = ByteArray(1024)
-                val bytesRead = serialPort?.inputStream?.read(buffer)
-                if (bytesRead != null && bytesRead > 0) {
-                    val response = String(buffer, 0, bytesRead)
-                    notifyOutput("< $response")
+                val sb = StringBuilder()
+                val start = System.currentTimeMillis()
+                while (System.currentTimeMillis() - start < 2000) {
+                    val available = serialPort?.bytesAvailable() ?: 0
+                    if (available > 0) {
+                        val read = serialPort?.inputStream?.read(buffer, 0, minOf(buffer.size, available)) ?: 0
+                        if (read > 0) {
+                            val chunk = String(buffer, 0, read)
+                            notifyOutput(chunk)
+                            sb.append(chunk)
+                            if (isDump && sb.contains("[End of Dump]")) break
+                            if (!isDump && chunk.contains('\n')) break
+                        }
+                    }
                 }
             } else {
                 notifyOutput("Failed to send command: Port not open")
@@ -87,7 +95,6 @@ class DesktopSerialCommunication : SerialCommunication {
         } catch (e: Exception) {
             notifyOutput("Error sending command: ${e.message}")
             e.printStackTrace()
-            // Try to reconnect on next attempt
             disconnect()
         }
     }

@@ -329,27 +329,26 @@ class AndroidSerialCommunication(private val context: Context) : SerialCommunica
                 connect()
                 return
             }
-            
+
             val data = "$command\n".toByteArray()
             notifyOutput("Sending command: $command")
             val result = usbConnection?.bulkTransfer(outEndpoint, data, data.size, TIMEOUT) ?: -1
-            
+
             if (result < 0) {
                 notifyOutput("Failed to send command: $command")
-                // Try to reconnect and send again
                 disconnect()
                 connect()
-                Thread.sleep(1000) // Wait for connection to establish
+                Thread.sleep(1000)
                 val retryResult = usbConnection?.bulkTransfer(outEndpoint, data, data.size, TIMEOUT) ?: -1
                 if (retryResult < 0) {
                     notifyOutput("Retry failed to send command: $command")
                 } else {
                     notifyOutput("Retry successful: $command, Bytes sent: $retryResult")
-                    readResponse()
+                    readResponse(command.lowercase() == "display dump")
                 }
             } else {
                 notifyOutput("Command sent successfully: $command, Bytes sent: $result")
-                readResponse()
+                readResponse(command.lowercase() == "display dump")
             }
         } catch (e: Exception) {
             notifyOutput("Error sending command: ${e.message}")
@@ -357,28 +356,21 @@ class AndroidSerialCommunication(private val context: Context) : SerialCommunica
         }
     }
 
-    private fun readResponse() {
+    private fun readResponse(expectDump: Boolean) {
         if (inEndpoint == null) return
-        
+
         try {
             val buffer = ByteArray(64)
-            var totalRead = 0
-            var attempts = 3
-            
-            while (attempts > 0) {
+            val sb = StringBuilder()
+            val start = System.currentTimeMillis()
+            while (System.currentTimeMillis() - start < 2000) {
                 val result = usbConnection?.bulkTransfer(inEndpoint, buffer, buffer.size, TIMEOUT) ?: -1
-                
                 if (result > 0) {
                     val response = String(buffer, 0, result)
-                    notifyOutput("< $response")
-                    totalRead += result
-                    if (response.contains('\n')) break
-                } else {
-                    attempts--
-                }
-                
-                if (totalRead == 0 && attempts == 0) {
-                    notifyOutput("No response received after 3 attempts")
+                    notifyOutput(response)
+                    sb.append(response)
+                    if (expectDump && sb.contains("[End of Dump]")) break
+                    if (!expectDump && response.contains('\n')) break
                 }
             }
         } catch (e: Exception) {
