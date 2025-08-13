@@ -13,9 +13,11 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -24,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import bruce.app.launchAndroidWebView
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 @Composable
 fun TerminalWindow(
@@ -302,10 +306,25 @@ fun App() {
     var showSerialCmds by remember { mutableStateOf(false) }
     var updateFirmware by remember { mutableStateOf(false) }
     var showAndroidFirmwarePopup by remember { mutableStateOf(false) }
+    var showNavigator by remember { mutableStateOf(false) }
+    var navigatorImage by remember { mutableStateOf<ImageBitmap?>(null) }
+    var captureDump by remember { mutableStateOf<StringBuilder?>(null) }
+    val scope = rememberCoroutineScope()
 
     DisposableEffect(Unit) {
         serialCommunication.setOutputListener { output ->
             terminalOutput += "$output\n"
+            captureDump?.let { buf ->
+                buf.append(output)
+                if (buf.contains("[End of Dump]")) {
+                    try {
+                        val bytes = parseDumpToBytes(buf.toString())
+                        navigatorImage = renderTft(bytes)
+                    } catch (_: Exception) {
+                    }
+                    captureDump = null
+                }
+            }
         }
         onDispose {
             serialCommunication.disconnect()
@@ -437,6 +456,20 @@ fun App() {
                     ) {
                         Text("USB Serial")
                     }
+                    Button(
+                        onClick = {
+                            showNavigator = true
+                            navigatorImage = null
+                            captureDump = StringBuilder()
+                            serialCommunication.sendCommand("display dump")
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = purpleColor,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text("Navigator")
+                    }
                     if (updateFirmware) {
                         Text("Updating Bruce.")
                     }
@@ -486,6 +519,25 @@ fun App() {
                             Text("OK")
                         }
                     }
+                )
+            }
+
+            if (showNavigator) {
+                NavigatorDialog(
+                    image = navigatorImage,
+                    onNavigate = { dir ->
+                        scope.launch {
+                            serialCommunication.sendCommand("nav $dir")
+                            kotlinx.coroutines.delay(500)
+                            captureDump = StringBuilder()
+                            serialCommunication.sendCommand("display dump")
+                        }
+                    },
+                    onReload = {
+                        captureDump = StringBuilder()
+                        serialCommunication.sendCommand("display dump")
+                    },
+                    onDismiss = { showNavigator = false }
                 )
             }
         }
